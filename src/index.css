@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-steam-bg text-steam-fg;
+}
+
+.app-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  background: radial-gradient(1200px 800px at 50% 20%, rgba(139, 92, 246, 0.15), transparent 60%),
+    radial-gradient(900px 700px at 20% 80%, rgba(79, 70, 229, 0.25), transparent 55%),
+    radial-gradient(900px 700px at 85% 75%, rgba(49, 46, 129, 0.4), transparent 55%),
+    linear-gradient(180deg, #1e1b4b 0%, #1a1b26 55%, #0f172a 100%);
+}
+
+.app-bg::before,
+.app-bg::after {
+  content: '';
+  position: absolute;
+  inset: -60%;
+  background-repeat: repeat;
+  background-size: 520px 520px;
+  opacity: 0.4;
+  transform: translate3d(0, 0, 0);
+}
+
+.app-bg::before {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.6) 1px, transparent 1.4px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.4) 1px, transparent 1.6px),
+    radial-gradient(circle, rgba(139, 92, 246, 0.4) 1px, transparent 1.7px);
+  background-position:
+    0 0,
+    120px 180px,
+    260px 40px;
+  animation: stars-drift-1 90s linear infinite;
+}
+
+.app-bg::after {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.55) 1px, transparent 1.7px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1.8px);
+  background-size: 760px 760px;
+  background-position:
+    0 0,
+    280px 120px;
+  opacity: 0.35;
+  animation: stars-drift-2 140s linear infinite;
+}
+
+@keyframes stars-drift-1 {
+  from {
+    transform: translate3d(-6%, -2%, 0);
+  }
+  to {
+    transform: translate3d(6%, 4%, 0);
+  }
+}
+
+@keyframes stars-drift-2 {
+  from {
+    transform: translate3d(3%, -4%, 0);
+  }
+  to {
+    transform: translate3d(-5%, 6%, 0);
+  }
+}
