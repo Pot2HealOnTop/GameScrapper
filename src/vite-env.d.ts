@@ -87,6 +87,15 @@ declare global {
       gameInstallCancel: () => Promise<void>
       gameInstallPause: () => Promise<boolean>
       gameInstallResume: () => Promise<boolean>
+      
+      // Settings
+      settingsGet: () => Promise<{ gamesFolderPath?: string | null }>
+      settingsSetGamesFolder: (folderPath: string | null) => Promise<{ gamesFolderPath?: string | null }>
+      settingsSelectGamesFolder: () => Promise<string | null>
+      
+      // App uninstall
+      appUninstall: () => Promise<{ success: boolean }>
+      
       onStoreProgress: (cb: (p: StoreProgressEvent) => void) => () => void
       onInstallProgress: (cb: (p: InstallProgressEvent) => void) => () => void
       onLibraryUpdated: (cb: (p: { games: LibraryGame[] }) => void) => () => void

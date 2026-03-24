@@ -46,6 +46,14 @@ contextBridge.exposeInMainWorld('launcher', {
   gameInstallCancel: () => ipcRenderer.invoke('game:installCancel'),
   gameInstallPause: () => ipcRenderer.invoke('game:installPause'),
   gameInstallResume: () => ipcRenderer.invoke('game:installResume'),
+  
+  // Settings
+  settingsGet: () => ipcRenderer.invoke('settings:get'),
+  settingsSetGamesFolder: (folderPath: string | null) => ipcRenderer.invoke('settings:setGamesFolder', folderPath),
+  settingsSelectGamesFolder: () => ipcRenderer.invoke('settings:selectGamesFolder'),
+  
+  // App uninstall
+  appUninstall: () => ipcRenderer.invoke('app:uninstall'),
   onStoreProgress: (cb: (p: StoreProgressEvent) => void) => {
     const handler = (_: unknown, p: StoreProgressEvent) => cb(p)
     ipcRenderer.on('store-progress', handler)

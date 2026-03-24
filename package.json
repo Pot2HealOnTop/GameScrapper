@@ -36,7 +36,21 @@
     "icon": "Images/gslogo.png",
     "win": {
       "icon": "Images/gslogo.png",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "GameScraper",
+      "artifactName": "GameScraper-Setup-${version}.${ext}"
     },
     "directories": {
       "output": "release-build"

@@ -1,10 +1,11 @@
-import { app, BrowserWindow, DownloadItem, ipcMain, Menu, shell } from 'electron'
+import { app, BrowserWindow, dialog, DownloadItem, ipcMain, Menu, shell } from 'electron'
 import {
   createWriteStream,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -84,8 +85,32 @@ function libraryPath() {
   return path.join(app.getPath('userData'), 'library.json')
 }
 
+function settingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json')
+}
+
+type SettingsFile = {
+  gamesFolderPath?: string | null
+}
+
+function loadSettings(): SettingsFile {
+  try {
+    const raw = readFileSync(settingsPath(), 'utf-8')
+    return JSON.parse(raw) as SettingsFile
+  } catch {
+    return {}
+  }
+}
+
+function saveSettings(data: SettingsFile) {
+  writeFileSync(settingsPath(), JSON.stringify(data, null, 2), 'utf-8')
+}
+
 function gamesRoot() {
-  const root = path.join(app.getPath('userData'), 'games')
+  const settings = loadSettings()
+  const root = settings.gamesFolderPath
+    ? path.join(settings.gamesFolderPath, 'games')
+    : path.join(app.getPath('userData'), 'games')
   if (!existsSync(root)) mkdirSync(root, { recursive: true })
   return root
 }
@@ -1770,6 +1795,130 @@ ipcMain.handle('game:uninstallFiles', async (_e, gameId: string) => {
   saveLibrary(lib)
   sendLibraryUpdated(lib)
   return updated
+})
+
+// Settings handlers
+ipcMain.handle('settings:get', () => loadSettings())
+
+ipcMain.handle('settings:setGamesFolder', async (_e, folderPath: string | null) => {
+  const settings = loadSettings()
+  const oldGamesRoot = gamesRoot()
+  
+  if (folderPath) {
+    // Validate the path exists
+    if (!existsSync(folderPath)) {
+      throw new Error('Le dossier sélectionné n\'existe pas')
+    }
+    settings.gamesFolderPath = folderPath
+  } else {
+    settings.gamesFolderPath = null
+  }
+  
+  saveSettings(settings)
+  
+  // If there are existing games, offer to migrate them
+  const newGamesRoot = gamesRoot()
+  if (oldGamesRoot !== newGamesRoot && existsSync(oldGamesRoot)) {
+    const entries = readdirSync(oldGamesRoot, { withFileTypes: true })
+    const gameFolders = entries.filter(e => e.isDirectory())
+    
+    if (gameFolders.length > 0) {
+      // Migrate existing games to new location
+      for (const folder of gameFolders) {
+        const oldPath = path.join(oldGamesRoot, folder.name)
+        const newPath = path.join(newGamesRoot, folder.name)
+        try {
+          if (!existsSync(newPath)) {
+            renameSync(oldPath, newPath)
+          }
+        } catch {
+          // Ignore migration errors
+        }
+      }
+      
+      // Update library paths
+      const lib = loadLibrary()
+      for (const game of lib.games) {
+        if (game.installDir.startsWith(oldGamesRoot)) {
+          game.installDir = game.installDir.replace(oldGamesRoot, newGamesRoot)
+          if (game.exePath && game.exePath.startsWith(oldGamesRoot)) {
+            game.exePath = game.exePath.replace(oldGamesRoot, newGamesRoot)
+          }
+        }
+      }
+      saveLibrary(lib)
+    }
+  }
+  
+  return settings
+})
+
+ipcMain.handle('settings:selectGamesFolder', async () => {
+  if (!mainWindow) throw new Error('Fenêtre principale non disponible')
+  
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Choisir le dossier de stockage des jeux',
+    buttonLabel: 'Sélectionner',
+  })
+  
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+  
+  return result.filePaths[0]
+})
+
+// Full app uninstall handler
+ipcMain.handle('app:uninstall', async () => {
+  const lib = loadLibrary()
+  
+  // Stop all running games
+  runningGames.forEach((run, gameId) => {
+    try {
+      run.child.kill()
+    } catch {
+      // ignore
+    }
+  })
+  runningGames.clear()
+  
+  // Delete all game files
+  for (const game of lib.games) {
+    if (game.installDir && existsSync(game.installDir)) {
+      try {
+        rmSync(game.installDir, { recursive: true, force: true })
+      } catch {
+        // ignore
+      }
+    }
+  }
+  
+  // Get the games root folder
+  const gamesFolder = gamesRoot()
+  if (existsSync(gamesFolder)) {
+    try {
+      rmSync(gamesFolder, { recursive: true, force: true })
+    } catch {
+      // ignore
+    }
+  }
+  
+  // Clear user data (library, settings, store cache)
+  const userData = app.getPath('userData')
+  const filesToDelete = ['library.json', 'settings.json', 'store-discovery.json']
+  for (const file of filesToDelete) {
+    const filePath = path.join(userData, file)
+    if (existsSync(filePath)) {
+      try {
+        rmSync(filePath)
+      } catch {
+        // ignore
+      }
+    }
+  }
+  
+  return { success: true }
 })
 
 async function createWindow() {
