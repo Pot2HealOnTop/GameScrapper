@@ -1,4 +1,5 @@
 # 🎮 GameScraper
+[![discord members](https://discord-live-members-count-badge.vercel.app/api/discord-members?guildId=1486462149004886206&color=8b5cf6&label=Users&scale=2)](https://discord.gg/2t7vQNHjdU)
 
 ![Interface Bibliothèque](image1.png)
 
