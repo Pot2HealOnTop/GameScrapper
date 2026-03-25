@@ -1,6 +1,6 @@
 # 🎮 GameScraper
 
-![Interface Bibliothèque](Image1.png)
+![Interface Bibliothèque](image1.png)
 
 **GameScraper** est une application de bureau moderne conçue pour centraliser, organiser et lancer vos jeux vidéo. Grâce à son moteur de scraping intégré, vous pouvez facilement importer des listes de jeux depuis vos sites web favoris, gérer vos téléchargements et garder un historique précis de votre temps de jeu.
 
