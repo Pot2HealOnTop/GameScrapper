@@ -54,7 +54,6 @@ L'installation de GameScraper est conçue pour être la plus simple possible :
 
 ## 🛠️ Technologies Utilisées
 
-*(Modifiez cette section selon votre stack)*
 * **Frontend :** (ex: Electron, React, TailwindCSS...)
 * **Backend / Scraping :** (ex: Node.js, Python...)
 * **Base de données :** (ex: SQLite, JSON local...)
