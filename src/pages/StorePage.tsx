@@ -9,6 +9,13 @@ export function StorePage() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [isConfiguringSource, setIsConfiguringSource] = useState(false)
+  
+  // Pagination mode
+  const [isPaginatedMode, setIsPaginatedMode] = useState(false)
+  const [pageCount, setPageCount] = useState(3)
+  const [progressPhase, setProgressPhase] = useState<string>('')
+  const [progressCurrent, setProgressCurrent] = useState(0)
+  const [progressTotal, setProgressTotal] = useState(0)
 
   useEffect(() => {
     void (async () => {
@@ -16,13 +23,35 @@ export function StorePage() {
         const cached = await window.launcher.storeCachedGet()
         if (cached) {
           setLocalSourceUrl(cached.pageUrl)
-          setLocalItems(cached.items || [])
+          // Cast items to ensure they have the new fields
+          setLocalItems((cached.items || []) as StoreItem[])
           setUpdatedAt(cached.updatedAt)
         }
       } finally {
         setLoading(false)
       }
     })()
+    
+    // Subscribe to progress updates
+    const unsub = window.launcher.onStoreProgress((p) => {
+      if (p.phase === 'fetch') {
+        setProgressPhase('Récupération des pages...')
+      } else if (p.phase === 'parse') {
+        setProgressPhase(`Analyse... ${(p as any).count || 0} jeux trouvés`)
+      } else if (p.phase === 'covers') {
+        setProgressPhase('Enrichissement avec Steam...')
+        setProgressCurrent((p as any).current || 0)
+        setProgressTotal((p as any).total || 0)
+      } else if (p.phase === 'save') {
+        setProgressPhase('Sauvegarde...')
+      } else if (p.phase === 'done') {
+        setProgressPhase('')
+        setProgressCurrent(0)
+        setProgressTotal(0)
+      }
+    })
+    
+    return () => unsub()
   }, [])
 
   const filteredLocalItems = useMemo(() => {
@@ -37,10 +66,15 @@ export function StorePage() {
 
     setIsConfiguringSource(true)
     try {
-      const res = await window.launcher.storeScrape(localSourceUrl)
+      let res
+      if (isPaginatedMode) {
+        res = await window.launcher.storeScrapePaginated(localSourceUrl, pageCount)
+      } else {
+        res = await window.launcher.storeScrape(localSourceUrl)
+      }
       setLocalItems(res.items)
       setUpdatedAt(new Date().toISOString())
-      alert('Source locale mise à jour avec succès !')
+      alert(`Source locale mise à jour avec succès ! ${res.items.length} jeux trouvés.`)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erreur lors de la configuration')
     } finally {
@@ -65,22 +99,99 @@ export function StorePage() {
 
       <div className="mb-10 rounded-2xl bg-steam-panel border border-steam-border p-6">
         <h3 className="text-lg font-bold text-white mb-4">Configuration de la source</h3>
-        <form onSubmit={handleSaveSource} className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="url"
-            value={localSourceUrl}
-            onChange={(e) => setLocalSourceUrl(e.target.value)}
-            placeholder="https://exemple.com/jeux"
-            className="flex-1 rounded-xl bg-black/40 border border-steam-border px-4 py-3 text-white outline-none focus:border-steam-accent"
-            required
-          />
+        
+        {/* Mode toggle */}
+        <div className="flex gap-4 mb-4">
           <button
-            type="submit"
-            disabled={isConfiguringSource}
-            className="rounded-xl bg-steam-accent px-8 py-3 text-steam-bg font-bold hover:brightness-110 disabled:opacity-50 transition-all"
+            type="button"
+            onClick={() => setIsPaginatedMode(false)}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              !isPaginatedMode 
+                ? 'bg-steam-accent text-steam-bg' 
+                : 'bg-black/40 text-steam-muted hover:text-white'
+            }`}
           >
-            {isConfiguringSource ? 'Analyse...' : 'Actualiser la source'}
+            Page unique
           </button>
+          <button
+            type="button"
+            onClick={() => setIsPaginatedMode(true)}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              isPaginatedMode 
+                ? 'bg-steam-accent text-steam-bg' 
+                : 'bg-black/40 text-steam-muted hover:text-white'
+            }`}
+          >
+            Multi-pages (Steam)
+          </button>
+        </div>
+        
+        {isPaginatedMode && (
+          <div className="mb-4 p-4 rounded-xl bg-blue-900/20 border border-blue-500/30">
+            <p className="text-sm text-blue-300 mb-2">
+              Mode pagination avec enrichissement Steam
+            </p>
+            <p className="text-xs text-steam-muted mb-2">
+              Collez l'URL d'une page quelconque (ex: ?lcp_page1=3). Le système détectera automatiquement 
+              le numéro de page et scrapera toutes les pages de 1 à N.
+            </p>
+            <p className="text-xs text-steam-muted">
+              Les images et métadonnées seront récupérées automatiquement depuis Steam.
+            </p>
+          </div>
+        )}
+        
+        <form onSubmit={handleSaveSource} className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="url"
+              value={localSourceUrl}
+              onChange={(e) => setLocalSourceUrl(e.target.value)}
+              placeholder={isPaginatedMode ? "https://site.com/jeux/?lcp_page1=3#anchor" : "https://exemple.com/jeux"}
+              className="flex-1 rounded-xl bg-black/40 border border-steam-border px-4 py-3 text-white outline-none focus:border-steam-accent"
+              required
+            />
+            {isPaginatedMode && (
+              <div className="flex items-center gap-2 sm:w-auto">
+                <label className="text-sm text-steam-muted whitespace-nowrap">Pages:</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={pageCount}
+                  onChange={(e) => setPageCount(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                  className="w-20 rounded-xl bg-black/40 border border-steam-border px-3 py-3 text-white outline-none focus:border-steam-accent"
+                />
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={isConfiguringSource}
+              className="rounded-xl bg-steam-accent px-8 py-3 text-steam-bg font-bold hover:brightness-110 disabled:opacity-50 transition-all"
+            >
+              {isConfiguringSource ? 'Analyse...' : 'Actualiser la source'}
+            </button>
+          </div>
+          
+          {/* Progress bar */}
+          {isConfiguringSource && progressPhase && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-steam-muted">
+                <span>{progressPhase}</span>
+                {progressTotal > 0 && (
+                  <span>{progressCurrent} / {progressTotal}</span>
+                )}
+              </div>
+              {progressTotal > 0 && (
+                <div className="h-2 rounded-full bg-black/40 overflow-hidden">
+                  <div 
+                    className="h-full bg-steam-accent transition-all duration-300"
+                    style={{ width: `${Math.round((progressCurrent / progressTotal) * 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </form>
         {updatedAt && (
           <p className="mt-3 text-[11px] text-steam-muted">

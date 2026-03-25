@@ -667,7 +667,11 @@ async function searchSteamGames(query: string): Promise<{ id: number; name: stri
       
       if (id && name) {
         // Transformer l'image de recherche en header image plus grande si possible
-        const header_image = img.replace('capsule_sm_120.jpg', 'header.jpg').replace('capsule_61x28.jpg', 'header.jpg')
+        let header_image = img.replace('capsule_sm_120.jpg', 'header.jpg').replace('capsule_61x28.jpg', 'header.jpg')
+        // Fallback si l'image est vide
+        if (!header_image) {
+          header_image = `https://cdn.akamai.steamstatic.com/steam/apps/${id}/header.jpg`
+        }
         results.push({ id, name, header_image })
       }
     })
@@ -834,6 +838,398 @@ ipcMain.handle('store:scrape', async (_e, pageUrl: string) => {
 
     sendStoreProgress({ phase: 'save' })
     const result = { pageUrl, items }
+    saveStoreDiscovery({ ...result, updatedAt: new Date().toISOString() })
+    return result
+  } finally {
+    sendStoreProgress({ phase: 'done' })
+  }
+})
+
+// Paginated scraping with automatic Steam enrichment
+ipcMain.handle('store:scrapePaginated', async (_e, urlTemplate: string, pageCount: number) => {
+  try {
+    sendStoreProgress({ phase: 'fetch' })
+    
+    const allItems: { id: string; name: string; detailPageUrl: string; coverImageUrl: string | null; steamData?: any }[] = []
+    const seen = new Set<string>()
+    
+    // Detect page number pattern in URL
+    // Supports: {page} placeholder OR automatic detection of page number in URL
+    let pageNumberMatch: RegExpMatchArray | null = null
+    let usePlaceholder = false
+    
+    if (urlTemplate.includes('{page}') || urlTemplate.includes('%7Bpage%7D')) {
+      usePlaceholder = true
+    } else {
+      // Try to find a page number in the URL (e.g., ?lcp_page1=3 or /page/3/ or ?page=3)
+      const patterns = [
+        /([?&]\w*page\w*=)(\d+)/i,  // ?lcp_page1=3 or ?page=3
+        /(\/page\/)(\d+)(?:\/|$)/i,  // /page/3/ or /page/3
+        /([-_]page[-_]?)(\d+)/i,      // _page3 or -page-3
+      ]
+      
+      for (const pattern of patterns) {
+        pageNumberMatch = urlTemplate.match(pattern)
+        if (pageNumberMatch) break
+      }
+      
+      if (!pageNumberMatch) {
+        throw new Error('Impossible de détecter le numéro de page dans l\'URL. Utilisez {page} comme placeholder ou assurez-vous que l\'URL contient un numéro de page (ex: ?lcp_page1=3)')
+      }
+    }
+    
+    for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+      let pageUrl: string
+      
+      if (usePlaceholder) {
+        pageUrl = urlTemplate.replace(/{page}|%7Bpage%7D/g, String(pageNum))
+      } else if (pageNumberMatch) {
+        // Replace the detected page number with the new page number
+        const prefix = pageNumberMatch[1]
+        pageUrl = urlTemplate.replace(prefix + pageNumberMatch[2], prefix + pageNum)
+      } else {
+        continue
+      }
+      
+      try {
+        const res = await fetch(pageUrl, { headers: FETCH_HEADERS })
+        if (!res.ok) {
+          console.warn(`Page ${pageNum}: HTTP ${res.status}, skipping...`)
+          continue
+        }
+        
+        const html = await res.text()
+        const $ = cheerio.load(html)
+        const base = new URL(pageUrl)
+        
+        const excludedAncestors =
+          'nav,header,footer,aside,[role="navigation"],[role="banner"],[role="contentinfo"],.menu,.navbar,.nav,.site-header,.site-footer,.header,.footer,.logo,.brand,.breadcrumb,.breadcrumbs,.pagination,.pager,.page-numbers,.widget,.social,.share,.language,.lang,.search,.searchform,.comments,.comment,.cookie,.consent'
+
+        const isExcluded = (el: Element) => {
+          const $el = $(el)
+          if ($el.parents(excludedAncestors).length > 0) return true
+          const role = ($el.attr('role') || '').toLowerCase()
+          if (role.includes('menuitem') || role.includes('navigation')) return true
+          const aria = ($el.attr('aria-label') || '').toLowerCase()
+          if (aria.includes('menu') || aria.includes('navigation')) return true
+          const cls = ($el.attr('class') || '').toLowerCase()
+          if (/(menu|nav|navbar|breadcrumb|logo|brand|footer|header|cookie|consent)/.test(cls)) return true
+          return false
+        }
+
+        let $scope = $('article').first()
+        if (!$scope.length) $scope = $('main').first()
+        if (!$scope.length) $scope = $('.entry-content, .post-content, .single-content, #content, .content').first()
+        const $links = $scope.length ? $scope.find('a[href]') : $('a[href]')
+
+        $links.each((_, el) => {
+          if (isExcluded(el)) return
+          const raw = $(el).attr('href')?.trim()
+          if (!raw) return
+          if (raw.startsWith('mailto:') || raw.startsWith('javascript:')) return
+          let abs: string
+          try {
+            abs = new URL(raw, base).href
+          } catch {
+            return
+          }
+          if (seen.has(abs)) return
+          const hasImgInside = $(el).find('img').length > 0
+          const name = normalizeName($(el).text(), abs)
+          if (isJunkUrl(abs, base, $(el).text(), hasImgInside)) return
+
+          // Filter out non-game entries
+          const nameLower = name.toLowerCase()
+          const junkTerms = [
+            'pc game', 'pc games', 'download', 'free download', 'gratuit', 'télécharger',
+            'full version', 'direct link', 'torrent', 'crack', 'repack', 'fitgirl',
+            'homepage', 'home', 'accueil', 'contact', 'about', 'à propos',
+            'privacy', 'terms', 'conditions', 'faq', 'help', 'aide',
+            'login', 'register', 'sign in', 'sign up', 'connexion', 'inscription',
+            'category', 'catégorie', 'tag', 'archive', 'archives',
+            'comment', 'commentaire', 'share', 'partager', 'follow', 'suivre'
+          ]
+          const isJunkName = junkTerms.some(term => 
+            nameLower === term || 
+            nameLower.startsWith(term + ' ') || 
+            nameLower.endsWith(' ' + term) ||
+            nameLower.includes(' ' + term + ' ')
+          )
+          
+          // Skip if name is too short or looks like navigation
+          if (name.length < 3 || isJunkName || /^\d+$/.test(name)) return
+          
+          // Skip if URL looks like a category/tag page
+          const urlLower = abs.toLowerCase()
+          const categoryPatterns = ['/category/', '/tag/', '/archive/', '/author/', '/page/', '/tag/']
+          if (categoryPatterns.some(p => urlLower.includes(p))) return
+
+          const id = hashId(abs)
+          seen.add(abs)
+          allItems.push({
+            id,
+            name,
+            detailPageUrl: abs,
+            coverImageUrl: null, // Will be enriched from Steam
+          })
+        })
+        
+        sendStoreProgress({ phase: 'parse', count: allItems.length })
+        
+      } catch (err) {
+        console.warn(`Error scraping page ${pageNum}:`, err)
+      }
+    }
+    
+    // Enrich all items with Steam data (covers, screenshots, descriptions)
+    sendStoreProgress({ phase: 'covers', current: 0, total: allItems.length })
+    
+    const chunk = 2 // Process 2 games at a time to avoid rate limiting
+    for (let i = 0; i < allItems.length; i += chunk) {
+      const slice = allItems.slice(i, i + chunk)
+      
+      // Add delay between chunks to avoid rate limiting
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500)) // 500ms delay
+      }
+      
+      await Promise.all(
+        slice.map(async (item) => {
+          // Skip if already processed (might happen with duplicates)
+          if (item.coverImageUrl) return
+          
+          try {
+            // Add small delay between each item in the chunk
+            await new Promise(resolve => setTimeout(resolve, 100))
+            
+            // Clean the game name for better search
+            let searchName = item.name
+              // Remove common tags and labels (crack groups, etc.)
+              .replace(/\b(PC Game|PC|Download|Free|Gratuit|Full Version|Direct Link|Torrent|Crack|Repack|FitGirl|CODEX|FLT|SKIDROW|HOODLUM|PLAZA|RAZOR1911|CPY|STEAMPUNKS|DARKSiDERS|TiNYiSO|ANOMALY|DELiGHT|FCKDRM|GOG|IGG-GAMES|HI2U|PROPHET|BAT|RELOADED|ALI213|3DM|P2P|Goldberg|Online|Fix|Multiplayer|Singleplayer)\b/gi, '')
+              // Remove BUILD numbers (BUILD 12345678)
+              .replace(/\bBUILD\s+\d+\b/gi, '')
+              // Remove version numbers (v1.0, v2.03, v1.5.2, etc.)
+              .replace(/\bv?\d+\.\d+(?:\.\d+)?\b/gi, '')
+              // Remove text in parentheses, brackets, and braces
+              .replace(/[\(\[\{].*?[\)\]\}]/g, '')
+              // Remove special characters but keep letters, numbers, spaces
+              .replace(/[^\w\s]/g, ' ')
+              // Remove dashes and extra spaces
+              .replace(/\s*-\s*/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+            
+            // Remove common website/domain names that might be in the title
+            try {
+              const domainPattern = item.detailPageUrl.match(/https?:\/\/([^\/]+)/)
+              if (domainPattern) {
+                const domain = domainPattern[1].replace(/^www\./, '').split('.')[0]
+                if (domain && domain.length > 2) {
+                  const domainRegex = new RegExp(`\\b${domain}\\b`, 'gi')
+                  searchName = searchName.replace(domainRegex, '')
+                }
+              }
+            } catch {
+              // Ignore domain extraction errors
+            }
+            
+            // Final cleanup
+            searchName = searchName.replace(/\s+/g, ' ').trim()
+            
+            // If after cleaning we have almost nothing, try a simpler approach
+            if (searchName.length < 3) {
+              // Just remove obvious junk words and keep the rest
+              searchName = item.name
+                .replace(/\b(download|free|gratuit|pc game|full version|direct link)\b/gi, '')
+                .replace(/[\(\[\{].*?[\)\]\}]/g, '')
+                .trim()
+            }
+            
+            if (searchName.length < 2) searchName = item.name
+            
+            // Search Steam for this game - try multiple variants
+            let steamResults = await searchSteamGames(searchName)
+            
+            // If no results, try without numbers (for games like "The Sims 4" -> "The Sims")
+            if (steamResults.length === 0 && /\d/.test(searchName)) {
+              const withoutNumbers = searchName.replace(/\s+\d+\s*$/, '').trim()
+              if (withoutNumbers.length > 2 && withoutNumbers !== searchName) {
+                console.log(`Trying without numbers: "${withoutNumbers}"`)
+                steamResults = await searchSteamGames(withoutNumbers)
+              }
+            }
+            
+            // If still no results, try with just the first 3 words
+            if (steamResults.length === 0) {
+              const firstWords = searchName.split(/\s+/).slice(0, 3).join(' ')
+              if (firstWords.length > 5 && firstWords !== searchName) {
+                console.log(`Trying first 3 words: "${firstWords}"`)
+                steamResults = await searchSteamGames(firstWords)
+              }
+            }
+            
+            console.log(`Found ${steamResults.length} results for "${searchName}"`)
+            if (steamResults.length > 0) {
+              console.log(`First result: ${steamResults[0].name} (ID: ${steamResults[0].id})`)
+              // Find the best match by comparing names
+              let bestMatch = steamResults[0]
+              let bestScore = 0
+              
+              const itemNameLower = searchName.toLowerCase()
+              const itemWords = itemNameLower.split(/\s+/).filter(w => w.length > 2)
+              
+              for (const result of steamResults.slice(0, 5)) {
+                const resultNameLower = result.name.toLowerCase()
+                const resultWords = resultNameLower.split(/\s+/).filter(w => w.length > 2)
+                
+                // Check for exact or near-exact match first
+                if (resultNameLower === itemNameLower || 
+                    resultNameLower.includes(itemNameLower) || 
+                    itemNameLower.includes(resultNameLower)) {
+                  bestScore = 1.0
+                  bestMatch = result
+                  break
+                }
+                
+                // Word-based matching
+                let matchCount = 0
+                for (const word of itemWords) {
+                  if (resultWords.some(rw => rw.includes(word) || word.includes(rw))) {
+                    matchCount++
+                  }
+                }
+                
+                const score = matchCount / Math.max(itemWords.length, resultWords.length)
+                if (score > bestScore) {
+                  bestScore = score
+                  bestMatch = result
+                }
+              }
+              
+              // Try to get details even with low confidence (at least 10% match)
+              if (bestScore < 0.1) {
+                console.warn(`Very low confidence match for "${item.name}": "${bestMatch.name}" (${Math.round(bestScore * 100)}%)`)
+                // Still use the image as fallback
+                item.coverImageUrl = bestMatch.header_image
+                item.steamData = {
+                  coverImageUrl: bestMatch.header_image,
+                  name: bestMatch.name,
+                  description: '',
+                  screenshots: [],
+                  genres: [],
+                  developers: [],
+                  publishers: [],
+                  releaseDate: '',
+                  lowConfidence: true, // Flag to indicate this might not be the right game
+                }
+                return
+              }
+              
+              // Get detailed info
+              const details = await (async () => {
+                try {
+                  const url = `https://store.steampowered.com/api/appdetails?appids=${bestMatch.id}&l=french&cc=fr`
+                  const res = await fetch(url, { headers: FETCH_HEADERS })
+                  if (!res.ok) return null
+                  const json = await res.json()
+                  const entry = json?.[String(bestMatch.id)]
+                  if (!entry?.success || !entry?.data) return null
+                  const d = entry.data
+                  // Ensure we have a valid cover image
+                  let coverImageUrl = d.header_image
+                  if (!coverImageUrl && d.capsule_image) {
+                    coverImageUrl = d.capsule_image
+                  }
+                  if (!coverImageUrl) {
+                    coverImageUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${bestMatch.id}/header.jpg`
+                  }
+                  
+                  return {
+                    coverImageUrl: coverImageUrl || bestMatch.header_image,
+                    description: d.short_description || '',
+                    screenshots: Array.isArray(d.screenshots)
+                      ? d.screenshots.map((s: any) => String(s?.path_full || '')).filter(Boolean).slice(0, 5)
+                      : [],
+                    genres: Array.isArray(d.genres) ? d.genres.map((g: any) => String(g?.description || '')).filter(Boolean) : [],
+                    developers: Array.isArray(d.developers) ? d.developers.map(String) : [],
+                    publishers: Array.isArray(d.publishers) ? d.publishers.map(String) : [],
+                    releaseDate: d.release_date?.date || '',
+                  }
+                } catch {
+                  return null
+                }
+              })()
+              
+              if (details) {
+                item.coverImageUrl = details.coverImageUrl
+                item.steamData = {
+                  ...details,
+                  name: bestMatch.name, // Add the Steam name
+                }
+              } else {
+                // Fallback to search result image
+                item.coverImageUrl = bestMatch.header_image
+                item.steamData = {
+                  coverImageUrl: bestMatch.header_image,
+                  name: bestMatch.name,
+                  description: '',
+                  screenshots: [],
+                  genres: [],
+                  developers: [],
+                  publishers: [],
+                  releaseDate: '',
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`Failed to enrich ${item.name}:`, e)
+          }
+        })
+      )
+      sendStoreProgress({ phase: 'covers', current: Math.min(i + chunk, allItems.length), total: allItems.length })
+    }
+
+    sendStoreProgress({ phase: 'save' })
+    
+    // Transform items to include full Steam data as the primary info
+    const enrichedItems = allItems.map(item => {
+      // If we have Steam data, use it as the primary source
+      if (item.steamData) {
+        return {
+          id: item.id,
+          // Use Steam name if available
+          name: item.steamData.name || item.name,
+          detailPageUrl: item.detailPageUrl,
+          coverImageUrl: item.steamData.coverImageUrl || item.coverImageUrl,
+          // Store full Steam data for the detail page
+          steamData: item.steamData,
+          description: item.steamData.description,
+          screenshots: item.steamData.screenshots,
+          genres: item.steamData.genres,
+          developers: item.steamData.developers,
+          publishers: item.steamData.publishers,
+          releaseDate: item.steamData.releaseDate,
+        }
+      }
+      // Fallback to basic data - still try to use any cover image we might have
+      return {
+        id: item.id,
+        name: item.name,
+        detailPageUrl: item.detailPageUrl,
+        coverImageUrl: item.coverImageUrl,
+      }
+    })
+    
+    const result = { 
+      pageUrl: urlTemplate, 
+      items: enrichedItems,
+      isPaginatedMode: true, // Flag to indicate this was scraped with pagination
+    }
+    
+    // Log summary
+    const withImages = enrichedItems.filter(i => i.coverImageUrl).length
+    console.log(`Scraped ${enrichedItems.length} games, ${withImages} with images`)
+    
     saveStoreDiscovery({ ...result, updatedAt: new Date().toISOString() })
     return result
   } finally {

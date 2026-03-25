@@ -72,6 +72,31 @@ declare global {
           coverImageUrl: string | null
         }[]
       }>
+      storeScrapePaginated: (urlTemplate: string, pageCount: number) => Promise<{
+        pageUrl: string
+        isPaginatedMode?: boolean
+        items: {
+          id: string
+          name: string
+          detailPageUrl: string
+          coverImageUrl: string | null
+          description?: string
+          screenshots?: string[]
+          genres?: string[]
+          developers?: string[]
+          publishers?: string[]
+          releaseDate?: string
+          steamData?: {
+            coverImageUrl: string
+            description: string
+            screenshots: string[]
+            genres: string[]
+            developers: string[]
+            publishers: string[]
+            releaseDate: string
+          }
+        }[]
+      }>
       storeScrapeDetail: (detailPageUrl: string) => Promise<DetailScrapeResult>
       gameInstall: (payload: {
         id: string

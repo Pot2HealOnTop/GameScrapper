@@ -178,35 +178,64 @@ export function GamePage() {
     setDetail(null) // Reset detail to trigger loading overlay
     void (async () => {
       try {
-        const d = await window.launcher.storeScrapeDetail(detailPageUrl)
+        // Check if we have pre-fetched Steam data from paginated mode
+        const hasPrefetchData = storeItem?.description || storeItem?.screenshots?.length
         
-        // Si on a des données Steam stockées, on les fusionne avec le scrape local
-        if (steamDetail) {
-          setDetail({
-            ...d,
-            title: steamDetail.title,
-            description: steamDetail.description || d.description,
-            coverImageUrl: steamDetail.coverImageUrl || d.coverImageUrl,
-            screenshots: steamDetail.screenshots || d.screenshots,
-            releaseDate: steamDetail.releaseDate || d.releaseDate,
-            developer: steamDetail.developer || d.developer,
-            publisher: steamDetail.publisher || d.publisher,
-            genres: steamDetail.genres || d.genres,
-          })
+        if (hasPrefetchData) {
+          // Use pre-fetched data from pagination mode
+          const prefetchedDetail: DetailScrapeResult = {
+            detailPageUrl: storeItem!.detailPageUrl,
+            title: storeItem!.name,
+            coverImageUrl: storeItem!.coverImageUrl,
+            description: storeItem!.description || null,
+            screenshots: storeItem!.screenshots || null,
+            genres: storeItem!.genres || null,
+            releaseDate: storeItem!.releaseDate || null,
+            developer: storeItem!.developers?.[0] || null,
+            publisher: storeItem!.publishers?.[0] || null,
+            systemRequirements: null,
+            downloadCandidates: [],
+          }
+          
+          // Still try to get download links from the actual page
+          try {
+            const d = await window.launcher.storeScrapeDetail(detailPageUrl)
+            prefetchedDetail.downloadCandidates = d.downloadCandidates
+          } catch {
+            // Ignore errors, we'll just have no download candidates
+          }
+          
+          setDetail(prefetchedDetail)
         } else {
-          setDetail(d)
+          // Normal flow - scrape the detail page
+          const d = await window.launcher.storeScrapeDetail(detailPageUrl)
+          
+          // Si on a des données Steam stockées, on les fusionne avec le scrape local
+          if (steamDetail) {
+            setDetail({
+              ...d,
+              title: steamDetail.title,
+              description: steamDetail.description || d.description,
+              coverImageUrl: steamDetail.coverImageUrl || d.coverImageUrl,
+              screenshots: steamDetail.screenshots || d.screenshots,
+              releaseDate: steamDetail.releaseDate || d.releaseDate,
+              developer: steamDetail.developer || d.developer,
+              publisher: steamDetail.publisher || d.publisher,
+              genres: steamDetail.genres || d.genres,
+            })
+          } else {
+            setDetail(d)
+          }
         }
         
-        if (d.downloadCandidates && d.downloadCandidates.length > 0) {
-          setSelectedDownload(d.downloadCandidates[0].url)
-        }
+        // Download candidates are handled in the try blocks above
       } catch (e) {
         setMsg(e instanceof Error ? e.message : 'Impossible de charger la fiche')
       } finally {
         setDetailLoading(false)
       }
     })()
-  }, [detailPageUrl])
+  }, [detailPageUrl, storeItem])
 
   const title =
     detail?.title ||

@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('launcher', {
   steamAppDetails: (appId: number) => ipcRenderer.invoke('steam:appDetails', appId),
   storeClear: () => ipcRenderer.invoke('store:clear'),
   storeScrape: (pageUrl: string) => ipcRenderer.invoke('store:scrape', pageUrl),
+  storeScrapePaginated: (urlTemplate: string, pageCount: number) =>
+    ipcRenderer.invoke('store:scrapePaginated', urlTemplate, pageCount),
   storeScrapeDetail: (detailPageUrl: string) =>
     ipcRenderer.invoke('store:scrapeDetail', detailPageUrl),
   gameInstall: (payload: {

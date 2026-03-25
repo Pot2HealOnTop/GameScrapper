@@ -24,6 +24,18 @@ export type StoreItem = {
   /** Page de détail du jeu (pas le lien de téléchargement direct) */
   detailPageUrl: string
   coverImageUrl: string | null
+  /** Description du jeu (peut venir de Steam en mode pagination) */
+  description?: string
+  /** Screenshots du jeu (peut venir de Steam en mode pagination) */
+  screenshots?: string[]
+  /** Genres du jeu (peuvent venir de Steam en mode pagination) */
+  genres?: string[]
+  /** Développeurs du jeu (peuvent venir de Steam en mode pagination) */
+  developers?: string[]
+  /** Éditeurs du jeu (peuvent venir de Steam en mode pagination) */
+  publishers?: string[]
+  /** Date de sortie (peut venir de Steam en mode pagination) */
+  releaseDate?: string
 }
 
 export type DetailScrapeResult = {
