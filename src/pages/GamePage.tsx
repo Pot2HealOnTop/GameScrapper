@@ -201,6 +201,11 @@ export function GamePage() {
           try {
             const d = await window.launcher.storeScrapeDetail(detailPageUrl)
             prefetchedDetail.downloadCandidates = d.downloadCandidates
+            
+            // Auto-select first download if available
+            if (d.downloadCandidates.length > 0 && !selectedDownload) {
+              setSelectedDownload(d.downloadCandidates[0].url)
+            }
           } catch {
             // Ignore errors, we'll just have no download candidates
           }
@@ -209,6 +214,11 @@ export function GamePage() {
         } else {
           // Normal flow - scrape the detail page
           const d = await window.launcher.storeScrapeDetail(detailPageUrl)
+          
+          // Auto-select first download if available
+          if (d.downloadCandidates.length > 0 && !selectedDownload) {
+            setSelectedDownload(d.downloadCandidates[0].url)
+          }
           
           // Si on a des données Steam stockées, on les fusionne avec le scrape local
           if (steamDetail) {

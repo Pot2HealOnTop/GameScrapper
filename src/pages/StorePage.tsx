@@ -568,7 +568,7 @@ export function StorePage() {
             <Link
               key={item.id}
               to={`/game/${item.id}`}
-              state={{ storeItem: item, pageUrl: activeSource?.url || '' }}
+              state={{ storeItem: item, pageUrl: activeSource?.url || '', sourceId: activeSource?.id }}
               className="group relative flex flex-col overflow-hidden rounded-lg border border-white/5 bg-black/20 transition-all hover:border-steam-accent/50 hover:bg-black/40"
             >
               <div className="aspect-[3/4] overflow-hidden bg-black/40">
