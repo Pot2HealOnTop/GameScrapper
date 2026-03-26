@@ -136,18 +136,18 @@ export function Layout({ children }: { children: ReactNode }) {
             Bibliothèque
           </NavLink>
 
-          <NavLink to="/dashboard" className={({ isActive }) => `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${isActive ? 'bg-steam-card text-white shadow-lg' : 'text-steam-muted hover:bg-white/5 hover:text-white'}`}>
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            Magasin
-          </NavLink>
-
           <NavLink to="/store" className={({ isActive }) => `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${isActive ? 'bg-steam-card text-white shadow-lg' : 'text-steam-muted hover:bg-white/5 hover:text-white'}`}>
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            Source
+            Magasin
+          </NavLink>
+
+          <NavLink to="/sources" className={({ isActive }) => `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${isActive ? 'bg-steam-card text-white shadow-lg' : 'text-steam-muted hover:bg-white/5 hover:text-white'}`}>
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
+            Sources
           </NavLink>
         </nav>
 

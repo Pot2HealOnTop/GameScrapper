@@ -228,8 +228,21 @@ export function GamePage() {
             setSelectedDownload(d.downloadCandidates[0].url)
           }
           
-          // Si on a des données Steam stockées, on les fusionne avec le scrape local
-          if (steamDetail) {
+          // If we have storeItem, use it directly without Steam enrichment to avoid wrong game matches
+          if (storeItem) {
+            setDetail({
+              ...d,
+              title: storeItem.name,
+              coverImageUrl: storeItem.coverImageUrl || d.coverImageUrl,
+              description: storeItem.description || d.description,
+              screenshots: storeItem.screenshots || d.screenshots,
+              genres: storeItem.genres || d.genres,
+              releaseDate: storeItem.releaseDate || d.releaseDate,
+              developer: storeItem.developers?.[0] || d.developer,
+              publisher: storeItem.publishers?.[0] || d.publisher,
+            })
+          } else if (steamDetail) {
+            // Si on a des données Steam stockées ET qu'on n'a pas de storeItem (pour éviter les confusions de jeux)
             setDetail({
               ...d,
               title: steamDetail.title,
