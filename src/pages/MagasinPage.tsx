@@ -10,14 +10,14 @@ export function MagasinPage() {
 
   // Categories based on Steam genres
   const categories = [
-    { id: 'action', name: 'Action', icon: '­ƒÄ»' },
-    { id: 'adventure', name: 'Aventure', icon: '­ƒù║´©Å' },
-    { id: 'rpg', name: 'RPG', icon: 'ÔÜö´©Å' },
-    { id: 'strategy', name: 'Strat├®gie', icon: '­ƒºá' },
-    { id: 'simulation', name: 'Simulation', icon: '­ƒÄ«' },
-    { id: 'sport', name: 'Sport', icon: 'ÔÜ¢' },
-    { id: 'racing', name: 'Course', icon: '­ƒÅÄ´©Å' },
-    { id: 'indie', name: 'Ind├®', icon: '­ƒÄ¿' },
+    { id: 'action', name: 'Action', icon: '🎯' },
+    { id: 'adventure', name: 'Aventure', icon: '🗺️' },
+    { id: 'rpg', name: 'RPG', icon: '⚔️' },
+    { id: 'strategy', name: 'Stratégie', icon: '🧠' },
+    { id: 'simulation', name: 'Simulation', icon: '🎮' },
+    { id: 'sport', name: 'Sport', icon: '⚽' },
+    { id: 'racing', name: 'Course', icon: '🏎️' },
+    { id: 'indie', name: 'Indie', icon: '🎨' },
   ]
 
   // Load games from all sources
@@ -112,7 +112,7 @@ export function MagasinPage() {
           <div className="relative z-10 p-8 md:p-12">
             <div className="max-w-2xl">
               <span className="inline-block px-3 py-1 bg-steam-accent text-steam-bg text-xs font-bold rounded mb-4">
-                ├Ç LA UNE
+                À LA UNE
               </span>
               <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
                 {featuredGame.name}
@@ -176,7 +176,7 @@ export function MagasinPage() {
                 : 'bg-steam-panel border border-steam-border text-steam-muted hover:text-white hover:border-steam-accent'
             }`}
           >
-            ­ƒÄ« Tous les jeux
+            🎮 Tous les jeux
           </button>
           {categories.map(cat => (
             <button
@@ -200,7 +200,7 @@ export function MagasinPage() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-white">
               {searchQuery
-                ? `R├®sultats pour "${searchQuery}"`
+                ? `Résultats pour "${searchQuery}"`
                 : `${categories.find(c => c.id === selectedCategory)?.name || 'Jeux'}`
               }
             </h2>
@@ -217,7 +217,7 @@ export function MagasinPage() {
             </div>
           ) : (
             <div className="py-20 text-center border border-dashed border-steam-border rounded-2xl">
-              <p className="text-steam-muted text-lg">Aucun jeu trouv├®</p>
+              <p className="text-steam-muted text-lg">Aucun jeu trouvé</p>
             </div>
           )}
         </div>
@@ -229,13 +229,13 @@ export function MagasinPage() {
             <section className="mb-12">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  ­ƒöÑ Derniers ajouts
+                  🔥 Derniers ajouts
                 </h2>
                 <button
                   onClick={() => setSelectedCategory('all')}
                   className="text-steam-accent hover:text-steam-accent/80 text-sm font-medium"
                 >
-                  Voir tout ÔåÆ
+                  Voir tout →
                 </button>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -261,7 +261,7 @@ export function MagasinPage() {
                     onClick={() => setSelectedCategory(category.id)}
                     className="text-steam-accent hover:text-steam-accent/80 text-sm font-medium"
                   >
-                    Voir tout ÔåÆ
+                    Voir tout →
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
