@@ -166,15 +166,6 @@ export function LibraryPage() {
                 )}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={
-                        installed
-                          ? 'text-xs font-semibold text-green-300'
-                          : 'text-xs font-semibold text-amber-200'
-                      }
-                    >
-                      {installed ? 'Installé' : 'À télécharger'}
-                    </span>
                     {g.currentSessionStartedAt ? (
                       <>
                         <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
@@ -198,8 +189,14 @@ export function LibraryPage() {
                         </button>
                       </>
                     ) : (
-                      <span className="text-xs font-semibold text-amber-200">
-                        Installé
+                      <span
+                        className={
+                          installed
+                            ? 'text-xs font-semibold text-green-300'
+                            : 'text-xs font-semibold text-amber-200'
+                        }
+                      >
+                        {installed ? 'Installé' : 'Non installé'}
                       </span>
                     )}
                   </div>
@@ -209,11 +206,6 @@ export function LibraryPage() {
                 <h3 className="line-clamp-2 font-medium text-white group-hover:text-steam-accent">
                   {g.name}
                 </h3>
-                {(g.storePageUrl || g.detailPageUrl) && (
-                  <p className="mt-1 text-[11px] text-steam-muted" title={g.storePageUrl || g.detailPageUrl}>
-                    {storeSourceLabel(g.storePageUrl || g.detailPageUrl)}
-                  </p>
-                )}
                 <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-steam-muted">
                   <span>Temps de jeu : {formatPlayTime(totalPlay)}</span>
                   {g.lastPlayedAt && (
